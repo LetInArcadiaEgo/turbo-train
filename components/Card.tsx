@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion } from 'framer-motion';
+import { motion, useMotionValue, useTransform } from 'framer-motion';
 import { Cinzel } from 'next/font/google';
 
 const cinzel = Cinzel({ subsets: ['latin'] });
@@ -10,45 +10,81 @@ interface CardProps {
   isRevealed: boolean;
   isPlayable: boolean;
   isComputerCard?: boolean;
-  onClick?: () => void;
+  onDragStart?: () => void;
+  onDragEnd?: (event: MouseEvent | TouchEvent | PointerEvent) => void;
 }
 
-const Card: React.FC<CardProps> = ({ value, title, isRevealed, isPlayable, isComputerCard = false, onClick }) => {
+const Card: React.FC<CardProps> = ({ 
+  value, 
+  title, 
+  isRevealed, 
+  isPlayable, 
+  isComputerCard = false,
+  onDragStart,
+  onDragEnd
+}) => {
   return (
     <motion.div
-      whileHover={isPlayable ? { scale: 1.05 } : {}}
-      whileTap={isPlayable ? { scale: 0.95 } : {}}
+      drag={isPlayable}
+      dragMomentum={false}
+      dragElastic={0.1}
+      dragTransition={{ bounceStiffness: 600, bounceDamping: 20 }}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      whileHover={isPlayable ? { scale: 1.05, y: -5 } : {}}
+      whileDrag={{ 
+        scale: 1.1,
+        cursor: 'grabbing',
+        zIndex: 50
+      }}
       className={`
-        relative w-32 h-48 rounded-xl cursor-pointer
-        ${isPlayable ? 'hover:shadow-lg hover:shadow-purple-300/20' : 'cursor-default'}
-        transition-all duration-300 ease-in-out
+        relative w-16 h-24 rounded-lg shrink-0
+        ${isPlayable ? 'cursor-grab' : 'cursor-default'}
+        transition-all duration-150 ease-out
+        select-none
+        [-webkit-user-select:none]
+        [-moz-user-select:none]
+        [-ms-user-select:none]
+        [user-select:none]
+        [-webkit-user-drag:none]
+        [-webkit-tap-highlight-color:transparent]
       `}
-      onClick={isPlayable ? onClick : undefined}
+      initial={false}
+      layout
     >
-      <div 
+      <motion.div 
         className={`
-          absolute inset-0 rounded-xl p-4
+          absolute inset-0 rounded-lg p-2
           ${isRevealed 
             ? isComputerCard
               ? 'bg-gradient-to-b from-rose-800/90 to-rose-950/90'
               : 'bg-gradient-to-b from-purple-500/90 to-purple-900/90'
             : 'bg-gradient-to-b from-gray-200 to-gray-300'}
           flex flex-col items-center justify-between
-          border-2 border-opacity-30 ${isRevealed ? 'border-[#dcc48d]' : 'border-gray-400'}
+          border border-opacity-30 ${isRevealed ? 'border-[#dcc48d]' : 'border-gray-400'}
+          shadow-lg
+          select-none
+          [-webkit-user-select:none]
+          [-moz-user-select:none]
+          [-ms-user-select:none]
+          [user-select:none]
+          [-webkit-user-drag:none]
+          [-webkit-tap-highlight-color:transparent]
         `}
+        layout
       >
         {isRevealed ? (
           <>
-            <div className="text-white text-lg font-semibold drop-shadow-lg text-center">{title}</div>
-            <div className="text-[#dcc48d] text-4xl font-bold drop-shadow-lg">{value}</div>
-            <div className="text-purple-200 text-sm opacity-90">Power</div>
+            <div className="text-white text-[8px] font-semibold drop-shadow-lg text-center leading-tight select-none">{title}</div>
+            <div className="text-[#dcc48d] text-xl font-bold drop-shadow-lg select-none">{value}</div>
+            <div className="text-purple-200 text-[8px] opacity-90 select-none">Power</div>
           </>
         ) : (
-          <div className="h-full w-full flex items-center justify-center">
-            <span className={`${cinzel.className} text-gray-700 text-xl`}>Partition</span>
+          <div className="h-full w-full flex items-center justify-center select-none">
+            <span className={`${cinzel.className} text-gray-700 text-sm select-none`}>Partition</span>
           </div>
         )}
-      </div>
+      </motion.div>
     </motion.div>
   );
 };
