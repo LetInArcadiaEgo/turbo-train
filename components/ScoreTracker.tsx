@@ -1,22 +1,26 @@
 import React from 'react';
-import { motion } from 'framer-motion';
 
-interface ScoreTrackerProps {
+interface Track {
+  playerCards: any[];
+  computerCards: any[];
   playerScore: number;
   computerScore: number;
+  winner: 'player' | 'computer' | 'tie' | null;
+}
+
+interface ScoreTrackerProps {
+  tracks: Track[];
   round: number;
 }
 
 const ScoreTracker: React.FC<ScoreTrackerProps> = ({
-  playerScore,
-  computerScore,
+  tracks,
   round
 }) => {
-  const maxScore = Math.max(playerScore, computerScore);
-  const getScoreWidth = (score: number) => {
-    if (maxScore === 0) return '2%';
-    return `${(score / maxScore) * 100}%`;
-  };
+  const totalPlayerScore = tracks.reduce((sum, track) => sum + track.playerScore, 0);
+  const totalComputerScore = tracks.reduce((sum, track) => sum + track.computerScore, 0);
+  const playerWins = tracks.filter(t => t.winner === 'player').length;
+  const computerWins = tracks.filter(t => t.winner === 'computer').length;
 
   return (
     <div className="bg-[#1a1a1a] rounded-xl p-6 shadow-lg border-2 border-[#dcc48d] border-opacity-20">
@@ -25,36 +29,31 @@ const ScoreTracker: React.FC<ScoreTrackerProps> = ({
         <span className="text-purple-200">Round {round}/5</span>
       </div>
       
-      <div className="space-y-4">
-        <div>
-          <div className="flex justify-between text-sm text-purple-200 mb-1">
-            <span>You</span>
-            <span>{playerScore} points</span>
-          </div>
-          <div className="h-3 bg-[#2a2a2a] rounded-full overflow-hidden">
-            <motion.div
-              initial={{ width: 0 }}
-              animate={{ width: getScoreWidth(playerScore) }}
-              transition={{ duration: 0.5 }}
-              className="h-full bg-gradient-to-r from-purple-400 to-[#dcc48d] rounded-full"
-            />
-          </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-pink-400/20 rounded-lg p-4 text-center border-2 border-pink-400/30 shadow-lg backdrop-blur-sm">
+          <div className="text-pink-200 text-lg mb-1">You</div>
+          <div className="text-3xl font-bold text-white">{totalPlayerScore}</div>
+          <div className="text-sm text-pink-200 mt-1">Tracks Won: {playerWins}</div>
         </div>
 
-        <div>
-          <div className="flex justify-between text-sm text-purple-200 mb-1">
-            <span>Opponent</span>
-            <span>{computerScore} points</span>
-          </div>
-          <div className="h-3 bg-[#2a2a2a] rounded-full overflow-hidden">
-            <motion.div
-              initial={{ width: 0 }}
-              animate={{ width: getScoreWidth(computerScore) }}
-              transition={{ duration: 0.5 }}
-              className="h-full bg-gradient-to-r from-purple-600 to-purple-900 rounded-full"
-            />
-          </div>
+        <div className="bg-pink-400/20 rounded-lg p-4 text-center border-2 border-pink-400/30 shadow-lg backdrop-blur-sm">
+          <div className="text-pink-200 text-lg mb-1">Opponent</div>
+          <div className="text-3xl font-bold text-white">{totalComputerScore}</div>
+          <div className="text-sm text-pink-200 mt-1">Tracks Won: {computerWins}</div>
         </div>
+      </div>
+
+      <div className="mt-4 grid grid-cols-3 gap-2">
+        {tracks.map((track, index) => (
+          <div key={index} className="bg-purple-400/10 rounded-lg p-2 text-center">
+            <div className="text-purple-200 text-sm">Track {index + 1}</div>
+            <div className="flex justify-center items-center gap-2 text-sm mt-1">
+              <span className="text-purple-200">{track.playerScore}</span>
+              <span className="text-gray-400">vs</span>
+              <span className="text-rose-200">{track.computerScore}</span>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
