@@ -249,7 +249,7 @@ const GameBoard: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#1a1a1a] py-12 px-4 select-none [-webkit-user-select:none] [-moz-user-select:none] [-ms-user-select:none] [user-select:none]" ref={boardRef}>
+    <div className="min-h-screen bg-[#1a1a1a] py-12 flex flex-col items-center" ref={boardRef}>
       {gameStatus === 'game_over' && determineGameWinner(tracks) === 'player' && (
         <Confetti
           width={window.innerWidth}
@@ -258,7 +258,7 @@ const GameBoard: React.FC = () => {
           numberOfPieces={200}
         />
       )}
-      <div className="max-w-7xl mx-auto">
+      <div className="w-full max-w-[1000px] mx-auto px-4 flex flex-col items-center">
         <div className="text-center mb-12 relative">
           <h1 className="text-4xl font-bold text-white mb-2 select-none">Partition</h1>
           {gameStatus === 'game_over' && determineGameWinner(tracks) === 'computer' && (
@@ -273,14 +273,14 @@ const GameBoard: React.FC = () => {
           <p className="text-gray-400 select-none">Round {round} of 5</p>
         </div>
 
-        <div className="mt-4 flex flex-col gap-[5px]">
+        <div className="w-full flex flex-col gap-[5px] items-center">
           {tracks.map((track, index) => (
             <motion.div
               key={index}
               ref={(el) => {
                 trackRefs.current[index] = el;
               }}
-              className="relative flex flex-row items-center h-32 mb-2"
+              className="relative flex flex-row items-center justify-center h-32 mb-2 w-full"
             >
               {/* Left side - Player's area (can receive drops) */}
               <motion.div
@@ -392,41 +392,39 @@ const GameBoard: React.FC = () => {
 
         {/* Player's hand */}
         <motion.div 
-          className="mt-4 h-[120px] flex items-center justify-center" 
+          className="mt-4 h-[120px] w-full flex justify-center items-center"
           layout={false}
         >
-          <div className="inline-flex">
-            <div className="grid grid-cols-[repeat(10,_minmax(0,_min-content))] gap-2">
-              <AnimatePresence mode="popLayout">
-                {playerHand.map((card) => (
-                  <motion.div
-                    key={card.id}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ 
-                      duration: 0.2,
-                      ease: [0.4, 0.0, 0.2, 1],
-                      layout: {
-                        duration: 0.4,
-                        ease: [0.4, 0.0, 0.2, 1]
-                      }
-                    }}
-                    layout="position"
-                    className="flex justify-center"
-                  >
-                    <Card
-                      value={card.value}
-                      title={card.title}
-                      isRevealed={true}
-                      isPlayable={gameStatus === 'playing'}
-                      onDragStart={() => handleDragStart(card)}
-                      onDrag={handleDrag}
-                      onDragEnd={(e) => handleDragEnd(e, card)}
-                    />
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-            </div>
+          <div className="flex gap-2">
+            <AnimatePresence mode="popLayout">
+              {playerHand.map((card) => (
+                <motion.div
+                  key={card.id}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ 
+                    duration: 0.2,
+                    ease: [0.4, 0.0, 0.2, 1],
+                    layout: {
+                      duration: 0.4,
+                      ease: [0.4, 0.0, 0.2, 1]
+                    }
+                  }}
+                  layout="position"
+                  className="flex justify-center"
+                >
+                  <Card
+                    value={card.value}
+                    title={card.title}
+                    isRevealed={true}
+                    isPlayable={gameStatus === 'playing'}
+                    onDragStart={() => handleDragStart(card)}
+                    onDrag={handleDrag}
+                    onDragEnd={(e) => handleDragEnd(e, card)}
+                  />
+                </motion.div>
+              ))}
+            </AnimatePresence>
           </div>
         </motion.div>
 
