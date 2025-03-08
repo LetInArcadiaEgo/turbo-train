@@ -14,7 +14,7 @@ const ScoreTracker: React.FC<ScoreTrackerProps> = ({
 }) => {
   const maxScore = Math.max(playerScore, computerScore);
   const getScoreWidth = (score: number) => {
-    if (maxScore === 0) return '50%';
+    if (maxScore === 0) return '2%';
     return `${(score / maxScore) * 100}%`;
   };
 
