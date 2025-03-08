@@ -1,8 +1,5 @@
 import React from 'react';
-import { motion, useMotionValue, useTransform } from 'framer-motion';
-import { Cinzel } from 'next/font/google';
-
-const cinzel = Cinzel({ subsets: ['latin'] });
+import { motion } from 'framer-motion';
 
 interface CardProps {
   value: number;
@@ -11,6 +8,7 @@ interface CardProps {
   isPlayable: boolean;
   isComputerCard?: boolean;
   onDragStart?: () => void;
+  onDrag?: (event: any, info: { point: { x: number; y: number } }) => void;
   onDragEnd?: (event: MouseEvent | TouchEvent | PointerEvent) => void;
 }
 
@@ -21,70 +19,51 @@ const Card: React.FC<CardProps> = ({
   isPlayable, 
   isComputerCard = false,
   onDragStart,
+  onDrag,
   onDragEnd
 }) => {
   return (
     <motion.div
       drag={isPlayable}
       dragMomentum={false}
-      dragElastic={0.1}
-      dragTransition={{ bounceStiffness: 600, bounceDamping: 20 }}
-      onDragStart={onDragStart}
-      onDragEnd={onDragEnd}
-      whileHover={isPlayable ? { scale: 1.05, y: -5 } : {}}
+      dragSnapToOrigin={true}
       whileDrag={{ 
         scale: 1.1,
-        cursor: 'grabbing',
         zIndex: 50
       }}
+      onDragStart={onDragStart}
+      onDrag={onDrag}
+      onDragEnd={onDragEnd}
       className={`
-        relative w-16 h-24 rounded-lg shrink-0
-        ${isPlayable ? 'cursor-grab' : 'cursor-default'}
-        transition-all duration-150 ease-out
-        select-none
-        [-webkit-user-select:none]
-        [-moz-user-select:none]
-        [-ms-user-select:none]
-        [user-select:none]
-        [-webkit-user-drag:none]
-        [-webkit-tap-highlight-color:transparent]
+        w-16 h-24 rounded-lg 
+        ${isRevealed 
+          ? isComputerCard
+            ? 'bg-gradient-to-b from-rose-800/90 to-rose-950/90'
+            : 'bg-gradient-to-b from-purple-500/90 to-purple-900/90'
+          : 'bg-gradient-to-b from-gray-200 to-gray-300'}
+        flex flex-col items-center justify-between p-2
+        border border-opacity-30 ${isRevealed ? 'border-[#dcc48d]' : 'border-gray-400'}
+        shadow-lg
+        ${isPlayable ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}
       `}
-      initial={false}
-      layout
     >
-      <motion.div 
-        className={`
-          absolute inset-0 rounded-lg p-2
-          ${isRevealed 
-            ? isComputerCard
-              ? 'bg-gradient-to-b from-rose-800/90 to-rose-950/90'
-              : 'bg-gradient-to-b from-purple-500/90 to-purple-900/90'
-            : 'bg-gradient-to-b from-gray-200 to-gray-300'}
-          flex flex-col items-center justify-between
-          border border-opacity-30 ${isRevealed ? 'border-[#dcc48d]' : 'border-gray-400'}
-          shadow-lg
-          select-none
-          [-webkit-user-select:none]
-          [-moz-user-select:none]
-          [-ms-user-select:none]
-          [user-select:none]
-          [-webkit-user-drag:none]
-          [-webkit-tap-highlight-color:transparent]
-        `}
-        layout
-      >
-        {isRevealed ? (
-          <>
-            <div className="text-white text-[8px] font-semibold drop-shadow-lg text-center leading-tight select-none">{title}</div>
-            <div className="text-[#dcc48d] text-xl font-bold drop-shadow-lg select-none">{value}</div>
-            <div className="text-purple-200 text-[8px] opacity-90 select-none">Power</div>
-          </>
-        ) : (
-          <div className="h-full w-full flex items-center justify-center select-none">
-            <span className={`${cinzel.className} text-gray-700 text-sm select-none`}>Partition</span>
+      {isRevealed ? (
+        <>
+          <div className="text-[8px] text-white font-medium text-center leading-tight max-h-8 overflow-hidden w-full px-0.5">
+            <span className="line-clamp-2 break-words hyphens-auto">{title}</span>
           </div>
-        )}
-      </motion.div>
+          <div className="text-2xl font-bold text-white">
+            {value}
+          </div>
+          <div className="text-[8px] text-white font-medium opacity-70">
+            Power
+          </div>
+        </>
+      ) : (
+        <div className="flex items-center justify-center h-full">
+          <span className="text-gray-400 text-xs">Card</span>
+        </div>
+      )}
     </motion.div>
   );
 };

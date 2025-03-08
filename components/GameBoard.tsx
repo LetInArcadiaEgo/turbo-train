@@ -48,8 +48,9 @@ const GameBoard: React.FC = () => {
   const [gameStatus, setGameStatus] = useState<'playing' | 'computer_turn' | 'round_end' | 'game_over'>('playing');
   const [playWinSound] = useSound('/win.mp3', { volume: 1.0 });
   const boardRef = useRef<HTMLDivElement>(null);
-  const [activeZone, setActiveZone] = useState<number | null>(null);
   const [draggedCard, setDraggedCard] = useState<GameCard | null>(null);
+  const [dragPosition, setDragPosition] = useState<{ x: number; y: number } | null>(null);
+  const trackRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   const calculateTrackScores = (tracks: Track[]): Track[] => {
     return tracks.map(track => {
@@ -122,14 +123,44 @@ const GameBoard: React.FC = () => {
   };
 
   const computerPlay = () => {
-    const availableTracks = [0, 1, 2];
-    const cardsToPlay = Math.min(3, computerHand.length);
+    // Get tracks that have less than 4 computer cards
+    const availableTracks = tracks
+      .map((track, index) => ({ index, cardCount: track.computerCards.length }))
+      .filter(track => track.cardCount < 4)
+      .map(track => track.index);
+
+    // If no tracks available or no cards in hand, skip computer's turn
+    if (availableTracks.length === 0 || computerHand.length === 0) {
+      const updatedTracks = calculateTrackScores(tracks);
+      setTracks(updatedTracks);
+      
+      setTimeout(() => {
+        if (round === 5) {
+          setGameStatus('game_over');
+          const winner = determineGameWinner(updatedTracks);
+          if (winner === 'player') {
+            playWinSound();
+          }
+        } else {
+          setGameStatus('round_end');
+          if (round === 1) {
+            playWinSound();
+          }
+        }
+      }, 1000);
+      return;
+    }
+
+    const cardsToPlay = Math.min(3, computerHand.length, availableTracks.length);
     
     const newTracks = [...tracks];
     const cardsToRemove: GameCard[] = [];
     
     for (let i = 0; i < cardsToPlay; i++) {
       const trackIndex = availableTracks[Math.floor(Math.random() * availableTracks.length)];
+      // Remove the chosen track from available tracks to prevent placing multiple cards
+      availableTracks.splice(availableTracks.indexOf(trackIndex), 1);
+      
       const card = computerHand[i];
       cardsToRemove.push(card);
       newTracks[trackIndex].computerCards.push(card);
@@ -183,26 +214,28 @@ const GameBoard: React.FC = () => {
     }, 1500); // Increased delay slightly to ensure smooth transition
   };
 
+  const isOverTrack = (index: number): boolean => {
+    if (!dragPosition || !trackRefs.current[index]) return false;
+    const rect = trackRefs.current[index]?.getBoundingClientRect();
+    if (!rect) return false;
+    return (
+      dragPosition.x >= rect.left &&
+      dragPosition.x <= rect.right &&
+      dragPosition.y >= rect.top &&
+      dragPosition.y <= rect.bottom
+    );
+  };
+
   const handleDragStart = (card: GameCard) => {
     setDraggedCard(card);
   };
 
-  const handleDragEnd = (e: any, card: GameCard) => {
-    let clientX: number;
-    let clientY: number;
+  const handleDrag = (_: any, info: { point: { x: number; y: number } }) => {
+    setDragPosition(info.point);
+  };
 
-    // Handle both mouse and touch events
-    if (e.touches && e.touches[0]) {
-      clientX = e.touches[0].clientX;
-      clientY = e.touches[0].clientY;
-    } else {
-      clientX = e.clientX;
-      clientY = e.clientY;
-    }
-    
-    // Get all elements at the drop point
-    const elements = document.elementsFromPoint(clientX, clientY);
-    // Find the first element with data-zone attribute
+  const handleDragEnd = (e: any, card: GameCard) => {
+    const elements = document.elementsFromPoint(dragPosition?.x || 0, dragPosition?.y || 0);
     const zone = elements.find(el => el.hasAttribute('data-zone'));
     
     if (zone) {
@@ -212,7 +245,7 @@ const GameBoard: React.FC = () => {
       }
     }
     setDraggedCard(null);
-    setActiveZone(null);
+    setDragPosition(null);
   };
 
   return (
@@ -226,8 +259,17 @@ const GameBoard: React.FC = () => {
         />
       )}
       <div className="max-w-7xl mx-auto">
-        <div className="text-center mb-12">
+        <div className="text-center mb-12 relative">
           <h1 className="text-4xl font-bold text-white mb-2 select-none">Partition</h1>
+          {gameStatus === 'game_over' && determineGameWinner(tracks) === 'computer' && (
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="absolute w-full text-2xl font-bold text-rose-500 top-[calc(100%_+_0.5rem)]"
+            >
+              You Lose!
+            </motion.p>
+          )}
           <p className="text-gray-400 select-none">Round {round} of 5</p>
         </div>
 
@@ -235,47 +277,41 @@ const GameBoard: React.FC = () => {
           {tracks.map((track, index) => (
             <motion.div
               key={index}
-              className={`
-                bg-[#1a1a1a]/50 p-2 rounded-xl border-2
-                ${activeZone === index && track.playerCards.length < 4 
-                  ? 'border-purple-500/50' 
-                  : 'border-[#dcc48d] border-opacity-20'}
-                relative overflow-hidden
-                ${draggedCard ? 'hover:bg-purple-500/5' : ''}
-                select-none [-webkit-user-select:none] [-moz-user-select:none] [-ms-user-select:none] [user-select:none]
-                [-webkit-user-drag:none] [-webkit-tap-highlight-color:transparent]
-                transition-all duration-200
-              `}
-              data-zone={index}
-              onMouseEnter={() => draggedCard && track.playerCards.length < 4 && setActiveZone(index)}
-              onMouseLeave={() => setActiveZone(null)}
-              initial={false}
-              animate={{
-                backgroundColor: activeZone === index && track.playerCards.length < 4 
-                  ? 'rgba(168, 85, 247, 0.1)' 
-                  : draggedCard 
-                    ? 'rgba(168, 85, 247, 0.03)'
-                    : 'rgba(26, 26, 26, 0.5)',
-                borderColor: activeZone === index && track.playerCards.length < 4
-                  ? 'rgba(168, 85, 247, 0.8)'
-                  : draggedCard
-                    ? 'rgba(168, 85, 247, 0.3)'
-                    : 'rgba(220, 196, 141, 0.2)',
-                scale: activeZone === index && track.playerCards.length < 4 ? 1.01 : 1
+              ref={(el) => {
+                trackRefs.current[index] = el;
               }}
-              transition={{ duration: 0.2 }}
+              className="relative flex flex-row items-center h-32 mb-2"
             >
-              <div className="relative h-32 flex items-center justify-between px-4">
-                {/* Left side - Player's cards */}
-                <div className="w-[400px] flex justify-center">
+              {/* Left side - Player's area (can receive drops) */}
+              <motion.div
+                className={`
+                  bg-[#1a1a1a]/50 p-2 rounded-xl border-2 w-[400px] h-full
+                  ${draggedCard && track.playerCards.length < 4
+                    ? isOverTrack(index)
+                      ? 'border-purple-500 bg-purple-500/30 shadow-[0_0_30px_rgba(168,85,247,0.5)]'
+                      : 'border-purple-500/40'
+                    : 'border-[#dcc48d] border-opacity-20'}
+                  relative overflow-hidden
+                  transition-all duration-150
+                `}
+                data-zone={index}
+                initial={false}
+                animate={{
+                  scale: isOverTrack(index) ? 1.02 : 1
+                }}
+                transition={{ duration: 0.15 }}
+              >
+                {/* Player's cards */}
+                <div className="w-full h-full flex items-center justify-center">
                   <div className="grid grid-cols-4 gap-2 items-center">
-                    <AnimatePresence mode="sync">
+                    <AnimatePresence mode="popLayout">
                       {track.playerCards.map((card, cardIndex) => (
                         <motion.div
                           key={card.id}
-                          initial={{ scale: 0.8, opacity: 0 }}
-                          animate={{ scale: 1, opacity: 1 }}
-                          exit={{ scale: 0.8, opacity: 0 }}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: 20 }}
+                          transition={{ duration: 0.2 }}
                           layout={false}
                           className="flex justify-center"
                         >
@@ -290,48 +326,50 @@ const GameBoard: React.FC = () => {
                     </AnimatePresence>
                   </div>
                 </div>
+              </motion.div>
 
-                {/* Center - Score display */}
-                <motion.div 
-                  className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-20"
-                  layout={false}
+              {/* Center - Score display */}
+              <motion.div 
+                className="mx-4 z-20"
+                layout={false}
+              >
+                <motion.div
+                  className={`
+                    min-w-[5rem] h-16 px-4 rounded-xl flex items-center justify-center
+                    bg-[#1a1a1a]/90 backdrop-blur-sm
+                    border-2
+                    ${track.playerScore > track.computerScore ? 'border-purple-500' : track.computerScore > track.playerScore ? 'border-rose-500' : 'border-gray-500'}
+                    transition-all duration-300 shadow-lg
+                  `}
+                  animate={{
+                    scale: isOverTrack(index) ? 1.15 : 1,
+                    boxShadow: isOverTrack(index) 
+                      ? '0 0 30px rgba(168, 85, 247, 0.5)'
+                      : 'none'
+                  }}
+                  transition={{ duration: 0.2 }}
                 >
-                  <motion.div
-                    className={`
-                      min-w-[5rem] h-16 px-4 rounded-xl flex items-center justify-center
-                      bg-[#1a1a1a]/90 backdrop-blur-sm
-                      border-2
-                      ${track.playerScore > track.computerScore ? 'border-purple-500' : track.computerScore > track.playerScore ? 'border-rose-500' : 'border-gray-500'}
-                      transition-all duration-300 shadow-lg
-                    `}
-                    animate={{
-                      scale: activeZone === index && draggedCard && track.playerCards.length < 4 ? 1.15 : 1,
-                      boxShadow: activeZone === index && draggedCard && track.playerCards.length < 4
-                        ? '0 0 30px rgba(168, 85, 247, 0.5)'
-                        : draggedCard
-                          ? '0 0 20px rgba(168, 85, 247, 0.2)'
-                          : '0 0 0px rgba(168, 85, 247, 0)'
-                    }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <div className="font-bold text-3xl flex items-center gap-3">
-                      <span className="text-purple-500 tabular-nums w-8 text-right">{track.playerScore}</span>
-                      <span className="text-gray-500 text-2xl">-</span>
-                      <span className="text-rose-500 tabular-nums w-8 text-left">{track.computerScore}</span>
-                    </div>
-                  </motion.div>
+                  <div className="font-bold text-3xl flex items-center gap-3">
+                    <span className="text-purple-500 tabular-nums w-8 text-right">{track.playerScore}</span>
+                    <span className="text-gray-500 text-2xl">-</span>
+                    <span className="text-rose-500 tabular-nums w-8 text-left">{track.computerScore}</span>
+                  </div>
                 </motion.div>
+              </motion.div>
 
-                {/* Right side - Computer's cards */}
-                <div className="w-[400px] flex justify-center">
+              {/* Right side - Computer's area (cannot receive drops) */}
+              <div className="bg-[#1a1a1a]/50 p-2 rounded-xl border-2 border-[#dcc48d] border-opacity-20 w-[400px] h-full relative overflow-hidden">
+                {/* Computer's cards */}
+                <div className="w-full h-full flex items-center justify-center">
                   <div className="grid grid-cols-4 gap-2 items-center">
-                    <AnimatePresence mode="sync">
+                    <AnimatePresence mode="popLayout">
                       {track.computerCards.map((card, cardIndex) => (
                         <motion.div
                           key={card.id}
-                          initial={{ scale: 0.8, opacity: 0 }}
-                          animate={{ scale: 1, opacity: 1 }}
-                          exit={{ scale: 0.8, opacity: 0 }}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: 20 }}
+                          transition={{ duration: 0.2 }}
                           layout={false}
                           className="flex justify-center"
                         >
@@ -353,15 +391,27 @@ const GameBoard: React.FC = () => {
         </div>
 
         {/* Player's hand */}
-        <motion.div className="mt-4" layout>
-          <div className="flex justify-center">
-            <div className="grid grid-cols-5 gap-2">
-              <AnimatePresence mode="sync" presenceAffectsLayout={false}>
+        <motion.div 
+          className="mt-4 h-[120px] flex items-center justify-center" 
+          layout={false}
+        >
+          <div className="inline-flex">
+            <div className="grid grid-cols-[repeat(10,_minmax(0,_min-content))] gap-2">
+              <AnimatePresence mode="popLayout">
                 {playerHand.map((card) => (
                   <motion.div
                     key={card.id}
-                    initial={{ scale: 0.8, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ 
+                      duration: 0.2,
+                      ease: [0.4, 0.0, 0.2, 1],
+                      layout: {
+                        duration: 0.4,
+                        ease: [0.4, 0.0, 0.2, 1]
+                      }
+                    }}
+                    layout="position"
                     className="flex justify-center"
                   >
                     <Card
@@ -370,6 +420,7 @@ const GameBoard: React.FC = () => {
                       isRevealed={true}
                       isPlayable={gameStatus === 'playing'}
                       onDragStart={() => handleDragStart(card)}
+                      onDrag={handleDrag}
                       onDragEnd={(e) => handleDragEnd(e, card)}
                     />
                   </motion.div>
@@ -380,7 +431,7 @@ const GameBoard: React.FC = () => {
         </motion.div>
 
         {/* Game controls */}
-        <div className="mt-4 flex justify-center gap-4">
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2">
           {gameStatus === 'playing' && (
             <button
               onClick={confirmRound}
