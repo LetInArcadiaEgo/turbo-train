@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Card from './Card';
-import ScoreTracker from './ScoreTracker';
 import { motion, AnimatePresence } from 'framer-motion';
 import Confetti from 'react-confetti';
 import useSound from 'use-sound';
@@ -32,6 +31,11 @@ const TITLES = [
   'Freedom at Midnight'
 ];
 
+interface DragEvent {
+  clientX: number;
+  clientY: number;
+}
+
 const GameBoard: React.FC = () => {
   const [playerHand, setPlayerHand] = useState<GameCard[]>([]);
   const [computerHand, setComputerHand] = useState<GameCard[]>([]);
@@ -43,6 +47,9 @@ const GameBoard: React.FC = () => {
   const [round, setRound] = useState(1);
   const [gameStatus, setGameStatus] = useState<'playing' | 'computer_turn' | 'round_end' | 'game_over'>('playing');
   const [playWinSound] = useSound('/win.mp3', { volume: 1.0 });
+  const boardRef = useRef<HTMLDivElement>(null);
+  const [activeZone, setActiveZone] = useState<number | null>(null);
+  const [draggedCard, setDraggedCard] = useState<GameCard | null>(null);
 
   const calculateTrackScores = (tracks: Track[]): Track[] => {
     return tracks.map(track => {
@@ -155,25 +162,61 @@ const GameBoard: React.FC = () => {
     const updatedTracks = calculateTrackScores(tracks);
     setTracks(updatedTracks);
     setGameStatus('computer_turn');
+    
+    // Play computer's turn and then automatically progress to next round
     computerPlay();
+    
+    // After computer plays, automatically set up next round
+    setTimeout(() => {
+      if (round === 5) {
+        setGameStatus('game_over');
+        const winner = determineGameWinner(updatedTracks);
+        if (winner === 'player') {
+          playWinSound();
+        }
+      } else {
+        setRound(prev => prev + 1);
+        setPlayerHand(prev => [...prev, generateCard()]);
+        setComputerHand(prev => [...prev, generateCard()]);
+        setGameStatus('playing');
+      }
+    }, 1500); // Increased delay slightly to ensure smooth transition
   };
 
-  const nextRound = () => {
-    if (round === 5) {
-      setGameStatus('game_over');
-      return;
+  const handleDragStart = (card: GameCard) => {
+    setDraggedCard(card);
+  };
+
+  const handleDragEnd = (e: any, card: GameCard) => {
+    let clientX: number;
+    let clientY: number;
+
+    // Handle both mouse and touch events
+    if (e.touches && e.touches[0]) {
+      clientX = e.touches[0].clientX;
+      clientY = e.touches[0].clientY;
+    } else {
+      clientX = e.clientX;
+      clientY = e.clientY;
     }
     
-    setRound(prev => prev + 1);
+    // Get all elements at the drop point
+    const elements = document.elementsFromPoint(clientX, clientY);
+    // Find the first element with data-zone attribute
+    const zone = elements.find(el => el.hasAttribute('data-zone'));
     
-    // Draw one new card for each player
-    setPlayerHand(prev => [...prev, generateCard()]);
-    setComputerHand(prev => [...prev, generateCard()]);
-    setGameStatus('playing');
+    if (zone) {
+      const zoneIndex = parseInt(zone.getAttribute('data-zone') || '0');
+      if (tracks[zoneIndex].playerCards.length < 4) {
+        playCard(card, zoneIndex);
+      }
+    }
+    setDraggedCard(null);
+    setActiveZone(null);
   };
 
   return (
-    <div className="min-h-screen bg-[#1a1a1a] py-12 px-4">
+    <div className="min-h-screen bg-[#1a1a1a] py-12 px-4 select-none [-webkit-user-select:none] [-moz-user-select:none] [-ms-user-select:none] [user-select:none]" ref={boardRef}>
       {gameStatus === 'game_over' && determineGameWinner(tracks) === 'player' && (
         <Confetti
           width={window.innerWidth}
@@ -182,128 +225,178 @@ const GameBoard: React.FC = () => {
           numberOfPieces={200}
         />
       )}
-      <div className="max-w-6xl mx-auto">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">Partition</h1>
-          <p className="text-gray-400">Round {round} of 5</p>
+      <div className="max-w-7xl mx-auto">
+        <div className="text-center mb-12">
+          <h1 className="text-4xl font-bold text-white mb-2 select-none">Partition</h1>
+          <p className="text-gray-400 select-none">Round {round} of 5</p>
         </div>
 
-        <ScoreTracker
-          tracks={tracks}
-          round={round}
-        />
-
-        <div className="mt-8 grid grid-cols-3 gap-8">
+        <div className="mt-4 flex flex-col gap-[5px]">
           {tracks.map((track, index) => (
-            <div key={index} className="bg-[#1a1a1a]/50 p-4 rounded-xl border-2 border-[#dcc48d] border-opacity-20">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-purple-200">Track {index + 1}</h3>
-                <div className="text-sm">
-                  <span className="text-purple-200">{track.playerScore}</span>
-                  <span className="text-gray-400 mx-2">vs</span>
-                  <span className="text-rose-200">{track.computerScore}</span>
+            <motion.div
+              key={index}
+              className={`
+                bg-[#1a1a1a]/50 p-2 rounded-xl border-2
+                ${activeZone === index && track.playerCards.length < 4 
+                  ? 'border-purple-500/50' 
+                  : 'border-[#dcc48d] border-opacity-20'}
+                relative overflow-hidden
+                ${draggedCard ? 'hover:bg-purple-500/5' : ''}
+                select-none [-webkit-user-select:none] [-moz-user-select:none] [-ms-user-select:none] [user-select:none]
+                [-webkit-user-drag:none] [-webkit-tap-highlight-color:transparent]
+                transition-all duration-200
+              `}
+              data-zone={index}
+              onMouseEnter={() => draggedCard && track.playerCards.length < 4 && setActiveZone(index)}
+              onMouseLeave={() => setActiveZone(null)}
+              initial={false}
+              animate={{
+                backgroundColor: activeZone === index && track.playerCards.length < 4 
+                  ? 'rgba(168, 85, 247, 0.1)' 
+                  : draggedCard 
+                    ? 'rgba(168, 85, 247, 0.03)'
+                    : 'rgba(26, 26, 26, 0.5)',
+                borderColor: activeZone === index && track.playerCards.length < 4
+                  ? 'rgba(168, 85, 247, 0.8)'
+                  : draggedCard
+                    ? 'rgba(168, 85, 247, 0.3)'
+                    : 'rgba(220, 196, 141, 0.2)',
+                scale: activeZone === index && track.playerCards.length < 4 ? 1.01 : 1
+              }}
+              transition={{ duration: 0.2 }}
+            >
+              <div className="relative h-32 flex items-center justify-between px-4">
+                {/* Left side - Player's cards */}
+                <div className="w-[400px] flex justify-center">
+                  <div className="grid grid-cols-4 gap-2 items-center">
+                    <AnimatePresence mode="sync">
+                      {track.playerCards.map((card, cardIndex) => (
+                        <motion.div
+                          key={card.id}
+                          initial={{ scale: 0.8, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          exit={{ scale: 0.8, opacity: 0 }}
+                          layout={false}
+                          className="flex justify-center"
+                        >
+                          <Card
+                            value={card.value}
+                            title={card.title}
+                            isRevealed={true}
+                            isPlayable={false}
+                          />
+                        </motion.div>
+                      ))}
+                    </AnimatePresence>
+                  </div>
+                </div>
+
+                {/* Center - Score display */}
+                <motion.div 
+                  className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-20"
+                  layout={false}
+                >
+                  <motion.div
+                    className={`
+                      min-w-[5rem] h-16 px-4 rounded-xl flex items-center justify-center
+                      bg-[#1a1a1a]/90 backdrop-blur-sm
+                      border-2
+                      ${track.playerScore > track.computerScore ? 'border-purple-500' : track.computerScore > track.playerScore ? 'border-rose-500' : 'border-gray-500'}
+                      transition-all duration-300 shadow-lg
+                    `}
+                    animate={{
+                      scale: activeZone === index && draggedCard && track.playerCards.length < 4 ? 1.15 : 1,
+                      boxShadow: activeZone === index && draggedCard && track.playerCards.length < 4
+                        ? '0 0 30px rgba(168, 85, 247, 0.5)'
+                        : draggedCard
+                          ? '0 0 20px rgba(168, 85, 247, 0.2)'
+                          : '0 0 0px rgba(168, 85, 247, 0)'
+                    }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <div className="font-bold text-3xl flex items-center gap-3">
+                      <span className="text-purple-500 tabular-nums w-8 text-right">{track.playerScore}</span>
+                      <span className="text-gray-500 text-2xl">-</span>
+                      <span className="text-rose-500 tabular-nums w-8 text-left">{track.computerScore}</span>
+                    </div>
+                  </motion.div>
+                </motion.div>
+
+                {/* Right side - Computer's cards */}
+                <div className="w-[400px] flex justify-center">
+                  <div className="grid grid-cols-4 gap-2 items-center">
+                    <AnimatePresence mode="sync">
+                      {track.computerCards.map((card, cardIndex) => (
+                        <motion.div
+                          key={card.id}
+                          initial={{ scale: 0.8, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          exit={{ scale: 0.8, opacity: 0 }}
+                          layout={false}
+                          className="flex justify-center"
+                        >
+                          <Card
+                            value={card.value}
+                            title={card.title}
+                            isRevealed={true}
+                            isPlayable={false}
+                            isComputerCard={true}
+                          />
+                        </motion.div>
+                      ))}
+                    </AnimatePresence>
+                  </div>
                 </div>
               </div>
-              <div className="space-y-4">
-                <div className="flex flex-col items-center gap-2">
-                  {track.computerCards.map(card => (
-                    <Card
-                      key={card.id}
-                      value={card.value}
-                      title={card.title}
-                      isRevealed={true}
-                      isPlayable={false}
-                      isComputerCard={true}
-                    />
-                  ))}
-                </div>
-                <div className="border-t-2 border-[#dcc48d] border-opacity-20 my-4" />
-                <div className="flex flex-col items-center gap-2">
-                  {track.playerCards.map(card => (
-                    <Card
-                      key={card.id}
-                      value={card.value}
-                      title={card.title}
-                      isRevealed={true}
-                      isPlayable={false}
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
+            </motion.div>
           ))}
         </div>
 
-        {gameStatus === 'playing' && (
-          <div className="text-center mt-8">
+        {/* Player's hand */}
+        <motion.div className="mt-4" layout>
+          <div className="flex justify-center">
+            <div className="grid grid-cols-5 gap-2">
+              <AnimatePresence mode="sync" presenceAffectsLayout={false}>
+                {playerHand.map((card) => (
+                  <motion.div
+                    key={card.id}
+                    initial={{ scale: 0.8, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    className="flex justify-center"
+                  >
+                    <Card
+                      value={card.value}
+                      title={card.title}
+                      isRevealed={true}
+                      isPlayable={gameStatus === 'playing'}
+                      onDragStart={() => handleDragStart(card)}
+                      onDragEnd={(e) => handleDragEnd(e, card)}
+                    />
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Game controls */}
+        <div className="mt-4 flex justify-center gap-4">
+          {gameStatus === 'playing' && (
             <button
               onClick={confirmRound}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg"
+              className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
             >
-              Confirm Round
+              Confirm
             </button>
-          </div>
-        )}
-
-        {gameStatus === 'computer_turn' && (
-          <div className="text-center mt-8">
-            <p className="text-purple-200 text-lg animate-pulse">Computer is playing...</p>
-          </div>
-        )}
-
-        {gameStatus === 'round_end' && (
-          <div className="text-center mt-8">
-            <button
-              onClick={nextRound}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg"
-            >
-              Next Round
-            </button>
-          </div>
-        )}
-
-        {gameStatus === 'game_over' && (
-          <div className="text-center mt-8">
-            <h2 className="text-2xl font-bold text-white mb-4">
-              {determineGameWinner(tracks) === 'player' ? 'You Won!' : 
-               determineGameWinner(tracks) === 'computer' ? 'You Lost!' : 'It\'s a Tie!'}
-            </h2>
+          )}
+          {gameStatus === 'game_over' && (
             <button
               onClick={initializeGame}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg"
+              className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
             >
               Play Again
             </button>
-          </div>
-        )}
-
-        <div className="mt-12">
-          <p className="text-gray-400 mb-4 text-center">Your Hand</p>
-          <div className="flex justify-center gap-4 flex-wrap">
-            {playerHand.map(card => (
-              <div key={card.id} className="relative group">
-                <Card
-                  value={card.value}
-                  title={card.title}
-                  isRevealed={true}
-                  isPlayable={gameStatus === 'playing'}
-                />
-                {gameStatus === 'playing' && (
-                  <div className="absolute -top-2 left-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity flex justify-center gap-2">
-                    {[0, 1, 2].map(trackIndex => (
-                      <button
-                        key={trackIndex}
-                        onClick={() => playCard(card, trackIndex)}
-                        className="bg-purple-600 text-white text-xs px-2 py-1 rounded-full hover:bg-purple-700"
-                      >
-                        {trackIndex + 1}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
+          )}
         </div>
       </div>
     </div>
