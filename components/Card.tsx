@@ -42,7 +42,7 @@ const Card: React.FC<CardProps> = ({
         w-16 h-24 rounded-lg 
         ${isRevealed 
           ? isComputerCard
-            ? 'bg-gradient-to-b from-rose-800/90 to-rose-950/90'
+            ? `bg-gradient-to-b ${fromColor} ${toColor}`
             : `bg-gradient-to-b ${fromColor} ${toColor}`
           : 'bg-gradient-to-b from-gray-200 to-gray-300'}
         flex flex-col items-center justify-between p-2

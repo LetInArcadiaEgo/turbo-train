@@ -6,23 +6,30 @@ import useSound from 'use-sound';
 
 // Track colors for the three lanes
 const TRACK_COLORS = [
-  { from: 'from-blue-500/90', to: 'to-blue-900/90', border: 'border-blue-500', highlight: 'rgba(59, 130, 246, 0.5)' },
-  { from: 'from-purple-500/90', to: 'to-purple-900/90', border: 'border-purple-500', highlight: 'rgba(168, 85, 247, 0.5)' },
-  { from: 'from-sky-400/90', to: 'to-sky-800/90', border: 'border-sky-400', highlight: 'rgba(56, 189, 248, 0.5)' }
+  { from: 'from-cyan-400/90', to: 'to-cyan-600/90', border: 'border-cyan-400', highlight: 'rgba(34, 211, 238, 0.5)' },
+  { from: 'from-[#6495ED]/90', to: 'to-[#4169E1]/90', border: 'border-[#6495ED]', highlight: 'rgba(100, 149, 237, 0.5)' },
+  { from: 'from-[#4B50E5]/90', to: 'to-[#3B3FD9]/90', border: 'border-[#4B50E5]', highlight: 'rgba(75, 80, 229, 0.5)' }
+] as const;
+
+// Opponent track colors (warm palette)
+const OPPONENT_COLORS = [
+  { from: 'from-rose-500/90', to: 'to-rose-600/90', border: 'border-rose-500' },     // Lighter red
+  { from: 'from-rose-600/90', to: 'to-rose-700/90', border: 'border-rose-600' },     // Medium red
+  { from: 'from-rose-800/90', to: 'to-rose-950/90', border: 'border-rose-800' }      // Deep burgundy
 ] as const;
 
 // Fixed card values for each title
 const CARD_VALUES: Record<string, { value: number, trackIndex: number }> = {
-  'Mountbatten Plan': { value: 8, trackIndex: 0 },
-  'Radcliffe Line': { value: 7, trackIndex: 1 },
-  'Direct Action Day': { value: 9, trackIndex: 2 },
-  'Independence Act': { value: 8, trackIndex: 0 },
-  'Muslim League': { value: 6, trackIndex: 1 },
-  'Indian Congress': { value: 7, trackIndex: 2 },
-  'Refugee Crisis': { value: 6, trackIndex: 0 },
-  'Princely States': { value: 5, trackIndex: 1 },
-  'Gandhi\'s Fast': { value: 4, trackIndex: 2 },
-  'Freedom at Midnight': { value: 5, trackIndex: 0 }
+  'Mountbatten Plan': { value: 8, trackIndex: 1 },
+  'Radcliffe Line': { value: 7, trackIndex: 2 },
+  'Direct Action Day': { value: 9, trackIndex: 0 },
+  'Independence Act': { value: 8, trackIndex: 1 },
+  'Muslim League': { value: 6, trackIndex: 2 },
+  'Indian Congress': { value: 7, trackIndex: 0 },
+  'Refugee Crisis': { value: 6, trackIndex: 1 },
+  'Princely States': { value: 5, trackIndex: 2 },
+  'Gandhi\'s Fast': { value: 4, trackIndex: 0 },
+  'Freedom at Midnight': { value: 5, trackIndex: 1 }
 };
 
 interface GameCard {
@@ -350,9 +357,15 @@ const GameBoard: React.FC = () => {
                   bg-[#1a1a1a]/50 p-2 rounded-xl border-2 w-[400px] h-full
                   ${draggedCard
                     ? isValidTrack(draggedCard, index)
-                      ? isOverTrack(index)
-                        ? `${TRACK_COLORS[index].border} shadow-[0_0_30px_${TRACK_COLORS[index].highlight}]`
-                        : `${TRACK_COLORS[draggedCard.trackIndex].border}/40`
+                      ? `${TRACK_COLORS[draggedCard.trackIndex].border} ${
+                          isOverTrack(index) 
+                            ? draggedCard.trackIndex === 0
+                              ? 'bg-cyan-400/20'
+                              : draggedCard.trackIndex === 1
+                                ? 'bg-[#6495ED]/20'
+                                : 'bg-[#4B50E5]/20'
+                            : ''
+                        }`
                       : 'border-[#dcc48d] border-opacity-20'
                     : 'border-[#dcc48d] border-opacity-20'}
                   relative overflow-visible
@@ -405,7 +418,7 @@ const GameBoard: React.FC = () => {
                     min-w-[5rem] h-16 px-4 rounded-xl flex items-center justify-center
                     bg-[#1a1a1a]/90 backdrop-blur-sm
                     border-2
-                    ${track.playerScore > track.computerScore ? 'border-purple-500' : track.computerScore > track.playerScore ? 'border-rose-500' : 'border-gray-500'}
+                    ${track.playerScore > track.computerScore ? 'border-[#4169E1]' : track.computerScore > track.playerScore ? 'border-rose-500' : 'border-gray-500'}
                     transition-all duration-150
                     shadow-lg
                   `}
@@ -418,7 +431,7 @@ const GameBoard: React.FC = () => {
                   transition={{ duration: 0.1 }}
                 >
                   <div className="font-bold text-3xl flex items-center gap-3">
-                    <span className="tabular-nums w-8 text-right text-purple-500">{track.playerScore}</span>
+                    <span className="tabular-nums w-8 text-right text-[#4169E1]">{track.playerScore}</span>
                     <span className="text-gray-500 text-2xl">-</span>
                     <span className="text-rose-500 tabular-nums w-8 text-left">{track.computerScore}</span>
                   </div>
@@ -448,8 +461,8 @@ const GameBoard: React.FC = () => {
                             isRevealed={true}
                             isPlayable={false}
                             isComputerCard={true}
-                            fromColor={TRACK_COLORS[card.trackIndex].from}
-                            toColor={TRACK_COLORS[card.trackIndex].to}
+                            fromColor={OPPONENT_COLORS[card.trackIndex].from}
+                            toColor={OPPONENT_COLORS[card.trackIndex].to}
                           />
                         </motion.div>
                       ))}
@@ -507,7 +520,7 @@ const GameBoard: React.FC = () => {
           {gameStatus === 'playing' && (
             <button
               onClick={confirmRound}
-              className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+              className="px-6 py-2 bg-[#4169E1] text-white rounded-lg hover:bg-[#3658c7] transition-colors"
             >
               Confirm
             </button>
@@ -515,7 +528,7 @@ const GameBoard: React.FC = () => {
           {gameStatus === 'game_over' && (
             <button
               onClick={initializeGame}
-              className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+              className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
             >
               Play Again
             </button>
