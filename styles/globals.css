@@ -2,9 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Import Neue Haas Grotesk */
+@import url('https://use.typekit.net/[YOUR-KIT-CODE].css');
+
 :root {
   --background: #1a1a1a;
   --foreground: #ffffff;
+  --font-title: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
 /* Prevent text selection during drag */

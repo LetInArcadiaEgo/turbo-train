@@ -14,12 +14,14 @@
     "react": "^18.2.0",
     "react-confetti": "^6.1.0",
     "react-dom": "^18.2.0",
+    "react-responsive": "^10.0.1",
     "use-sound": "^5.0.0"
   },
   "devDependencies": {
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "@types/react-responsive": "^9.0.0",
     "autoprefixer": "^10.4.16",
     "eslint": "^8",
     "eslint-config-next": "14.1.0",
