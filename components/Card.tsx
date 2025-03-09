@@ -7,6 +7,8 @@ interface CardProps {
   isRevealed: boolean;
   isPlayable: boolean;
   isComputerCard?: boolean;
+  fromColor?: string;
+  toColor?: string;
   onDragStart?: () => void;
   onDrag?: (event: any, info: { point: { x: number; y: number } }) => void;
   onDragEnd?: (event: MouseEvent | TouchEvent | PointerEvent) => void;
@@ -18,6 +20,8 @@ const Card: React.FC<CardProps> = ({
   isRevealed, 
   isPlayable, 
   isComputerCard = false,
+  fromColor,
+  toColor,
   onDragStart,
   onDrag,
   onDragEnd
@@ -29,7 +33,7 @@ const Card: React.FC<CardProps> = ({
       dragSnapToOrigin={true}
       whileDrag={{ 
         scale: 1.1,
-        zIndex: 50
+        zIndex: 100
       }}
       onDragStart={onDragStart}
       onDrag={onDrag}
@@ -39,13 +43,20 @@ const Card: React.FC<CardProps> = ({
         ${isRevealed 
           ? isComputerCard
             ? 'bg-gradient-to-b from-rose-800/90 to-rose-950/90'
-            : 'bg-gradient-to-b from-purple-500/90 to-purple-900/90'
+            : `bg-gradient-to-b ${fromColor} ${toColor}`
           : 'bg-gradient-to-b from-gray-200 to-gray-300'}
         flex flex-col items-center justify-between p-2
         border border-opacity-30 ${isRevealed ? 'border-[#dcc48d]' : 'border-gray-400'}
         shadow-lg
         ${isPlayable ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}
+        select-none touch-none
       `}
+      style={{
+        WebkitTouchCallout: 'none',
+        userDrag: 'none',
+        WebkitTapHighlightColor: 'transparent',
+        touchAction: 'none'
+      } as React.CSSProperties}
     >
       {isRevealed ? (
         <>

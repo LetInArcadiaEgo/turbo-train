@@ -4,10 +4,32 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Confetti from 'react-confetti';
 import useSound from 'use-sound';
 
+// Track colors for the three lanes
+const TRACK_COLORS = [
+  { from: 'from-blue-500/90', to: 'to-blue-900/90', border: 'border-blue-500', highlight: 'rgba(59, 130, 246, 0.5)' },
+  { from: 'from-purple-500/90', to: 'to-purple-900/90', border: 'border-purple-500', highlight: 'rgba(168, 85, 247, 0.5)' },
+  { from: 'from-sky-400/90', to: 'to-sky-800/90', border: 'border-sky-400', highlight: 'rgba(56, 189, 248, 0.5)' }
+] as const;
+
+// Fixed card values for each title
+const CARD_VALUES: Record<string, { value: number, trackIndex: number }> = {
+  'Mountbatten Plan': { value: 8, trackIndex: 0 },
+  'Radcliffe Line': { value: 7, trackIndex: 1 },
+  'Direct Action Day': { value: 9, trackIndex: 2 },
+  'Independence Act': { value: 8, trackIndex: 0 },
+  'Muslim League': { value: 6, trackIndex: 1 },
+  'Indian Congress': { value: 7, trackIndex: 2 },
+  'Refugee Crisis': { value: 6, trackIndex: 0 },
+  'Princely States': { value: 5, trackIndex: 1 },
+  'Gandhi\'s Fast': { value: 4, trackIndex: 2 },
+  'Freedom at Midnight': { value: 5, trackIndex: 0 }
+};
+
 interface GameCard {
   id: number;
   value: number;
   title: string;
+  trackIndex: number;
 }
 
 interface Track {
@@ -80,11 +102,16 @@ const GameBoard: React.FC = () => {
     return 'tie';
   };
 
-  const generateCard = (): GameCard => ({
-    id: Math.random(),
-    value: Math.floor(Math.random() * 10) + 1,
-    title: TITLES[Math.floor(Math.random() * TITLES.length)]
-  });
+  const generateCard = (): GameCard => {
+    const title = TITLES[Math.floor(Math.random() * TITLES.length)];
+    const cardInfo = CARD_VALUES[title];
+    return {
+      id: Math.random(),
+      value: cardInfo.value,
+      title: title,
+      trackIndex: cardInfo.trackIndex
+    };
+  };
 
   const initializeGame = () => {
     const initialPlayerHand = Array(5).fill(null).map(generateCard);
@@ -126,8 +153,7 @@ const GameBoard: React.FC = () => {
     // Get tracks that have less than 4 computer cards
     const availableTracks = tracks
       .map((track, index) => ({ index, cardCount: track.computerCards.length }))
-      .filter(track => track.cardCount < 4)
-      .map(track => track.index);
+      .filter(track => track.cardCount < 4);
 
     // If no tracks available or no cards in hand, skip computer's turn
     if (availableTracks.length === 0 || computerHand.length === 0) {
@@ -151,20 +177,31 @@ const GameBoard: React.FC = () => {
       return;
     }
 
-    const cardsToPlay = Math.min(3, computerHand.length, availableTracks.length);
-    
     const newTracks = [...tracks];
     const cardsToRemove: GameCard[] = [];
     
-    for (let i = 0; i < cardsToPlay; i++) {
-      const trackIndex = availableTracks[Math.floor(Math.random() * availableTracks.length)];
-      // Remove the chosen track from available tracks to prevent placing multiple cards
-      availableTracks.splice(availableTracks.indexOf(trackIndex), 1);
-      
-      const card = computerHand[i];
-      cardsToRemove.push(card);
-      newTracks[trackIndex].computerCards.push(card);
-    }
+    // Group cards by their track
+    const cardsByTrack = computerHand.reduce((acc, card) => {
+      if (!acc[card.trackIndex]) {
+        acc[card.trackIndex] = [];
+      }
+      acc[card.trackIndex].push(card);
+      return acc;
+    }, {} as Record<number, GameCard[]>);
+
+    // For each track that has space
+    availableTracks.forEach(({ index: trackIndex }) => {
+      // Get cards that can be played on this track
+      const validCards = cardsByTrack[trackIndex] || [];
+      if (validCards.length > 0) {
+        // Play the first valid card
+        const card = validCards[0];
+        cardsToRemove.push(card);
+        newTracks[trackIndex].computerCards.push(card);
+        // Remove the card from cardsByTrack to avoid playing it again
+        cardsByTrack[trackIndex] = cardsByTrack[trackIndex].filter(c => c.id !== card.id);
+      }
+    });
     
     // Apply all changes at once
     const updatedTracks = calculateTrackScores(newTracks);
@@ -181,7 +218,6 @@ const GameBoard: React.FC = () => {
         }
       } else {
         setGameStatus('round_end');
-        // Test sound effect after round 1
         if (round === 1) {
           playWinSound();
         }
@@ -234,13 +270,17 @@ const GameBoard: React.FC = () => {
     setDragPosition(info.point);
   };
 
+  const isValidTrack = (card: GameCard, trackIndex: number): boolean => {
+    return card.trackIndex === trackIndex && tracks[trackIndex].playerCards.length < 4;
+  };
+
   const handleDragEnd = (e: any, card: GameCard) => {
     const elements = document.elementsFromPoint(dragPosition?.x || 0, dragPosition?.y || 0);
     const zone = elements.find(el => el.hasAttribute('data-zone'));
     
     if (zone) {
       const zoneIndex = parseInt(zone.getAttribute('data-zone') || '0');
-      if (tracks[zoneIndex].playerCards.length < 4) {
+      if (isValidTrack(card, zoneIndex)) {
         playCard(card, zoneIndex);
       }
     }
@@ -249,7 +289,7 @@ const GameBoard: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#1a1a1a] py-12 flex flex-col items-center" ref={boardRef}>
+    <div className="min-h-screen bg-[#1a1a1a] py-12 flex flex-col items-center overflow-hidden" ref={boardRef}>
       {gameStatus === 'game_over' && determineGameWinner(tracks) === 'player' && (
         <Confetti
           width={window.innerWidth}
@@ -261,14 +301,36 @@ const GameBoard: React.FC = () => {
       <div className="w-full max-w-[1000px] mx-auto px-4 flex flex-col items-center">
         <div className="text-center mb-12 relative">
           <h1 className="text-4xl font-bold text-white mb-2 select-none">Partition</h1>
-          {gameStatus === 'game_over' && determineGameWinner(tracks) === 'computer' && (
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="absolute w-full text-2xl font-bold text-rose-500 top-[calc(100%_+_0.5rem)]"
-            >
-              You Lose!
-            </motion.p>
+          {gameStatus === 'game_over' && (
+            <>
+              {determineGameWinner(tracks) === 'computer' && (
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="absolute w-full text-2xl font-bold text-rose-500 top-[calc(100%_+_0.5rem)]"
+                >
+                  You Lose!
+                </motion.p>
+              )}
+              {determineGameWinner(tracks) === 'player' && (
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="absolute w-full text-2xl font-bold text-emerald-500 top-[calc(100%_+_0.5rem)]"
+                >
+                  You Win!
+                </motion.p>
+              )}
+              {determineGameWinner(tracks) === 'tie' && (
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="absolute w-full text-2xl font-bold text-amber-500 top-[calc(100%_+_0.5rem)]"
+                >
+                  You Tied!
+                </motion.p>
+              )}
+            </>
           )}
           <p className="text-gray-400 select-none">Round {round} of 5</p>
         </div>
@@ -286,18 +348,20 @@ const GameBoard: React.FC = () => {
               <motion.div
                 className={`
                   bg-[#1a1a1a]/50 p-2 rounded-xl border-2 w-[400px] h-full
-                  ${draggedCard && track.playerCards.length < 4
-                    ? isOverTrack(index)
-                      ? 'border-purple-500 bg-purple-500/30 shadow-[0_0_30px_rgba(168,85,247,0.5)]'
-                      : 'border-purple-500/40'
+                  ${draggedCard
+                    ? isValidTrack(draggedCard, index)
+                      ? isOverTrack(index)
+                        ? `${TRACK_COLORS[index].border} shadow-[0_0_30px_${TRACK_COLORS[index].highlight}]`
+                        : `${TRACK_COLORS[draggedCard.trackIndex].border}/40`
+                      : 'border-[#dcc48d] border-opacity-20'
                     : 'border-[#dcc48d] border-opacity-20'}
-                  relative overflow-hidden
+                  relative overflow-visible
                   transition-all duration-150
                 `}
                 data-zone={index}
                 initial={false}
                 animate={{
-                  scale: isOverTrack(index) ? 1.02 : 1
+                  scale: isOverTrack(index) && draggedCard && isValidTrack(draggedCard, index) ? 1.02 : 1
                 }}
                 transition={{ duration: 0.15 }}
               >
@@ -314,12 +378,15 @@ const GameBoard: React.FC = () => {
                           transition={{ duration: 0.2 }}
                           layout={false}
                           className="flex justify-center"
+                          style={{ zIndex: 1 }}
                         >
                           <Card
                             value={card.value}
                             title={card.title}
                             isRevealed={true}
                             isPlayable={false}
+                            fromColor={TRACK_COLORS[card.trackIndex].from}
+                            toColor={TRACK_COLORS[card.trackIndex].to}
                           />
                         </motion.div>
                       ))}
@@ -339,18 +406,19 @@ const GameBoard: React.FC = () => {
                     bg-[#1a1a1a]/90 backdrop-blur-sm
                     border-2
                     ${track.playerScore > track.computerScore ? 'border-purple-500' : track.computerScore > track.playerScore ? 'border-rose-500' : 'border-gray-500'}
-                    transition-all duration-300 shadow-lg
+                    transition-all duration-150
+                    shadow-lg
                   `}
                   animate={{
-                    scale: isOverTrack(index) ? 1.15 : 1,
-                    boxShadow: isOverTrack(index) 
-                      ? '0 0 30px rgba(168, 85, 247, 0.5)'
+                    scale: isOverTrack(index) && draggedCard && isValidTrack(draggedCard, index) ? 1.05 : 1,
+                    boxShadow: isOverTrack(index) && draggedCard && isValidTrack(draggedCard, index)
+                      ? `0 0 20px ${TRACK_COLORS[index].highlight}`
                       : 'none'
                   }}
-                  transition={{ duration: 0.2 }}
+                  transition={{ duration: 0.1 }}
                 >
                   <div className="font-bold text-3xl flex items-center gap-3">
-                    <span className="text-purple-500 tabular-nums w-8 text-right">{track.playerScore}</span>
+                    <span className="tabular-nums w-8 text-right text-purple-500">{track.playerScore}</span>
                     <span className="text-gray-500 text-2xl">-</span>
                     <span className="text-rose-500 tabular-nums w-8 text-left">{track.computerScore}</span>
                   </div>
@@ -358,7 +426,7 @@ const GameBoard: React.FC = () => {
               </motion.div>
 
               {/* Right side - Computer's area (cannot receive drops) */}
-              <div className="bg-[#1a1a1a]/50 p-2 rounded-xl border-2 border-[#dcc48d] border-opacity-20 w-[400px] h-full relative overflow-hidden">
+              <div className="bg-[#1a1a1a]/50 p-2 rounded-xl border-2 border-[#dcc48d] border-opacity-20 w-[400px] h-full relative overflow-visible">
                 {/* Computer's cards */}
                 <div className="w-full h-full flex items-center justify-center">
                   <div className="grid grid-cols-4 gap-2 items-center">
@@ -372,6 +440,7 @@ const GameBoard: React.FC = () => {
                           transition={{ duration: 0.2 }}
                           layout={false}
                           className="flex justify-center"
+                          style={{ zIndex: 1 }}
                         >
                           <Card
                             value={card.value}
@@ -379,6 +448,8 @@ const GameBoard: React.FC = () => {
                             isRevealed={true}
                             isPlayable={false}
                             isComputerCard={true}
+                            fromColor={TRACK_COLORS[card.trackIndex].from}
+                            toColor={TRACK_COLORS[card.trackIndex].to}
                           />
                         </motion.div>
                       ))}
@@ -394,6 +465,7 @@ const GameBoard: React.FC = () => {
         <motion.div 
           className="mt-4 h-[120px] w-full flex justify-center items-center"
           layout={false}
+          style={{ zIndex: 50 }}
         >
           <div className="flex gap-2">
             <AnimatePresence mode="popLayout">
@@ -418,6 +490,8 @@ const GameBoard: React.FC = () => {
                     title={card.title}
                     isRevealed={true}
                     isPlayable={gameStatus === 'playing'}
+                    fromColor={TRACK_COLORS[card.trackIndex].from}
+                    toColor={TRACK_COLORS[card.trackIndex].to}
                     onDragStart={() => handleDragStart(card)}
                     onDrag={handleDrag}
                     onDragEnd={(e) => handleDragEnd(e, card)}
@@ -429,7 +503,7 @@ const GameBoard: React.FC = () => {
         </motion.div>
 
         {/* Game controls */}
-        <div className="fixed bottom-8 left-1/2 -translate-x-1/2">
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-30">
           {gameStatus === 'playing' && (
             <button
               onClick={confirmRound}
